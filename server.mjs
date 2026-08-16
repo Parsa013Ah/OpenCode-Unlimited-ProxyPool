@@ -52,16 +52,17 @@ loadKeys();
 function auth(req) {
   const hdr = req.headers.authorization || req.headers["x-api-key"] || "";
   const tok = (hdr.startsWith("Bearer ") ? hdr.slice(7) : hdr).trim();
+  const live = getConfig(); // live settings — dashboard changes apply immediately
   if (!tok) {
     // allow missing key for local tools if openAuth
-    if (cfg.openAuth !== false) return "anonymous";
+    if (live.openAuth !== false) return "anonymous";
     return null;
   }
   for (const [name, key] of Object.entries(apiKeys)) {
     if (tok === key) return name;
   }
   // Local convenience: accept any non-empty key (Hermes / Cursor often send dummy keys)
-  if (cfg.openAuth !== false) return "local";
+  if (live.openAuth !== false) return "local";
   return null;
 }
 
