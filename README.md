@@ -1,5 +1,7 @@
 # opencode-free-proxy
 
+🌐 **English** | [🇮🇷 **فارسی**](README.fa.md)
+
 **Local OpenAI + Anthropic compatible gateway for OpenCode free-tier models.**
 
 One small Node server. Works with Cursor, Continue, Cline, Claude Code, aider, opencode CLI, or plain `curl`.
