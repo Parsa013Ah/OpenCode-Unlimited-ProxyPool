@@ -31,7 +31,7 @@ else if (process.env.PROXY_ENABLED == null) process.env.PROXY_ENABLED = "1";
 const PORT = cfg.port;
 const HOST = hostFromBind(cfg.bind);
 const OC_VERSION = "1.15.0";
-const PROXY_VERSION = "14";
+const PROXY_VERSION = "15";
 
 // ── API Keys ───────────────────────────────────────────────────────
 const keysFile = process.env.KEYS_FILE || "./api-keys.json";
@@ -52,17 +52,16 @@ loadKeys();
 function auth(req) {
   const hdr = req.headers.authorization || req.headers["x-api-key"] || "";
   const tok = (hdr.startsWith("Bearer ") ? hdr.slice(7) : hdr).trim();
-  const live = getConfig(); // live settings — dashboard changes apply immediately
   if (!tok) {
     // allow missing key for local tools if openAuth
-    if (live.openAuth !== false) return "anonymous";
+    if (cfg.openAuth !== false) return "anonymous";
     return null;
   }
   for (const [name, key] of Object.entries(apiKeys)) {
     if (tok === key) return name;
   }
   // Local convenience: accept any non-empty key (Hermes / Cursor often send dummy keys)
-  if (live.openAuth !== false) return "local";
+  if (cfg.openAuth !== false) return "local";
   return null;
 }
 
@@ -147,11 +146,26 @@ function isAllowedModel(model) {
 const userSessions = {};
 function getSession(user) {
   const now = Date.now();
-  if (!userSessions[user] || now - userSessions[user].ts > 30 * 60 * 1000) {
+  if (!userSessions[user] || now - userSessions[user].ts > 5 * 60 * 1000) {
     userSessions[user] = { id: ocId("ses"), ts: now };
   }
   return userSessions[user].id;
 }
+
+function forceNewSession(user) {
+  userSessions[user] = { id: ocId("ses"), ts: Date.now() };
+  return userSessions[user].id;
+}
+
+/** On rate-limit, try other free models (same request body). */
+function modelFallbackChain(primary) {
+  const chain = [primary];
+  for (const m of MODELS) {
+    if (!chain.includes(m)) chain.push(m);
+  }
+  return chain.slice(0, 4); // primary + up to 3 alternates
+}
+
 
 // ── Zen API transport ──────────────────────────────────────────────
 function zenRequest(model, messages, stream, tools, tool_choice, sessionId, agent) {
@@ -621,56 +635,66 @@ function pipeZenAsAnthropic(zenOpts, body, model, res, inputTokens) {
   });
 }
 
-// Unified runner: try direct first, then fall back to proxies on rate
-// limit / upstream failure. Each proxy that is rate limited is banned and
-// the next one is tried.
+// Unified runner: direct → proxies → alternate free models on rate-limit
 async function sendZenRequest({ model, messages, stream, tools, tool_choice, sessionId, res, format = "openai", inputTokens = 0 }) {
   const agents = [null, ...getProxyAgents()];
+  const modelsToTry = modelFallbackChain(model);
   let lastMsg = "All upstream attempts failed";
   let hadRateLimit = false;
+  let attempt = 0;
 
-  for (let i = 0; i < agents.length; i++) {
-    const agent = agents[i];
-    const label = agent ? `proxy ${i}/${agents.length - 1}` : "direct";
-    const { body, options } = zenRequest(model, messages, stream, tools, tool_choice, sessionId, agent);
-    log("TRY", `${i + 1}/${agents.length} via ${label}`, "info");
-
-    let outcome;
-    if (format === "anthropic" && stream) {
-      outcome = await pipeZenAsAnthropic(options, body, model, res, inputTokens);
-    } else if (format === "anthropic") {
-      outcome = await zenRequestFull(options, body);
-    } else {
-      outcome = await pipeZenResponse(options, body, stream, res);
+  for (const tryModel of modelsToTry) {
+    if (hadRateLimit && res.locals?.user) {
+      sessionId = forceNewSession(res.locals.user);
     }
+    for (let i = 0; i < agents.length; i++) {
+      attempt++;
+      const agent = agents[i];
+      const label = agent ? `proxy ${i}/${agents.length - 1}` : "direct";
+      const tag = tryModel === model ? label : `${label}·${tryModel}`;
+      const { body, options } = zenRequest(tryModel, messages, stream, tools, tool_choice, sessionId, agent);
+      log("TRY", `${attempt} via ${tag}`, "info");
 
-    if (outcome.kind === "ok") {
-      if (format === "anthropic" && !stream) {
-        res.json(openAIToAnthropic(outcome.data, model, inputTokens));
+      let outcome;
+      if (format === "anthropic" && stream) {
+        outcome = await pipeZenAsAnthropic(options, body, tryModel, res, inputTokens);
+      } else if (format === "anthropic") {
+        outcome = await zenRequestFull(options, body);
+      } else {
+        outcome = await pipeZenResponse(options, body, stream, res);
       }
-      const tin = outcome.data?.usage?.prompt_tokens || inputTokens || 0;
-      const tout = outcome.data?.usage?.completion_tokens || 0;
-      recordRequest({
-        user: res.locals?.user, model, stream, ok: true,
-        tokensIn: tin, tokensOut: tout, ms: Date.now() - (res.locals?.t0 || Date.now()),
-      });
-      return;
-    }
 
-    lastMsg = outcome.msg || "Upstream error";
-    if (outcome.kind === "rate_limit") {
-      hadRateLimit = true;
-      log("LIMIT", `via ${label}: ${outcome.msg}`, "warn");
-      if (agent) banProxy(agent); // long cooldown
-    } else {
-      log("FAIL", `via ${label}: ${outcome.msg}`, "error");
-      if (agent) banProxySoft(agent); // short cooldown for transient errors
+      if (outcome.kind === "ok") {
+        if (format === "anthropic" && !stream) {
+          res.json(openAIToAnthropic(outcome.data, tryModel, inputTokens));
+        }
+        const tin = outcome.data?.usage?.prompt_tokens || inputTokens || 0;
+        const tout = outcome.data?.usage?.completion_tokens || 0;
+        recordRequest({
+          user: res.locals?.user, model: tryModel, stream, ok: true,
+          tokensIn: tin, tokensOut: tout, ms: Date.now() - (res.locals?.t0 || Date.now()),
+        });
+        return;
+      }
+
+      lastMsg = outcome.msg || "Upstream error";
+      if (outcome.kind === "rate_limit") {
+        hadRateLimit = true;
+        log("LIMIT", `via ${tag}: ${outcome.msg}`, "warn");
+        if (agent) banProxy(agent);
+        if (!agent) break; // try next free model
+      } else {
+        log("FAIL", `via ${tag}: ${outcome.msg}`, "error");
+        if (agent) banProxySoft(agent);
+      }
     }
   }
 
   const code = hadRateLimit ? 429 : 502;
   const type = hadRateLimit ? "rate_limit_error" : "upstream_error";
-  const message = hadRateLimit ? `${lastMsg} (free model rate limit)` : lastMsg;
+  const message = hadRateLimit
+    ? `${lastMsg} (free tier busy — smaller chat or wait 1–2 min)`
+    : lastMsg;
 
   recordRequest({
     user: res.locals?.user, model, stream, ok: false,
@@ -720,6 +744,10 @@ app.post("/v1/chat/completions", (req, res) => {
 
   const sessionId = getSession(user);
   const msgSummary = (messages || []).map(m => ({ role: m.role, len: (typeof m.content === "string" ? m.content : JSON.stringify(m.content || "")).length }));
+  const approxChars = (messages || []).reduce((n, m) => n + (typeof m.content === "string" ? m.content.length : JSON.stringify(m.content || "").length), 0);
+  if (approxChars > 80000) {
+    log("OAI", `large context ~${approxChars} chars — free tier rate-limits faster`, "warn");
+  }
   log("OAI", `${user} · ${model} · ${stream ? "stream" : "sync"} · msgs ${JSON.stringify(msgSummary)}`, "info");
   res.locals.user = user;
   res.locals.t0 = Date.now();

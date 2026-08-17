@@ -3,12 +3,9 @@
  * No extra dependencies — pure readline.
  */
 import fs from "fs";
-import path from "path";
-import { exec } from "child_process";
-import { platform } from "os";
 import readline from "readline";
-import { loadConfig, saveConfig, getConfig, resetConfig, hostFromBind, CONFIG_FILE } from "./config.mjs";
-import { color, box } from "./banner.mjs";
+import { loadConfig, saveConfig, getConfig, hostFromBind } from "./config.mjs";
+import { color, hr } from "./banner.mjs";
 
 loadConfig();
 
@@ -26,40 +23,21 @@ function pause() {
   return ask(color.dim("\n  Press Enter to continue…"));
 }
 
-const on = () => color.success("● on");
-const off = () => color.gray("○ off");
-const badge = (v) => (v ? on() : off());
-
-function section(title) {
-  console.log("");
-  console.log(`  ${color.bMagenta("◆")} ${color.bold(title)}`);
-  console.log("  " + color.dim("─".repeat(46)));
-}
-
-function row(n, label, state) {
-  const base = `  ${color.bCyan(String(n).padStart(2))}   ${label}`;
-  return base.padEnd(34 - 4) + (state ? "  " + state : "");
-}
-
 function showHeader(cfg) {
   console.log("");
-  console.log(
-    box("OpenCode Proxy · Settings", [
-      color.dim("file ") + color.bCyan(CONFIG_FILE),
-      color.dim("node ") + process.version + color.dim("  ·  changes apply per setting (see notes)"),
-    ], { width: 54, colorFn: color.bCyan })
-  );
+  console.log(color.bCyan("  ╔══════════════════════════════════════════╗"));
+  console.log(color.bCyan("  ║") + color.bold("     OpenCode Proxy · Settings Menu     ") + color.bCyan("║"));
+  console.log(color.bCyan("  ╚══════════════════════════════════════════╝"));
   console.log("");
-  console.log(color.dim("  Current values"));
-  console.log("  " + color.dim("─".repeat(46)));
-  console.log(`  ${color.bold("Port").padEnd(16)} ${color.bGreen(String(cfg.port))}`);
-  console.log(`  ${color.bold("Bind").padEnd(16)} ${color.bGreen(cfg.bind)} ${color.dim(`(${hostFromBind(cfg.bind)})`)}`);
-  console.log(`  ${color.bold("Tray").padEnd(16)} ${badge(cfg.tray)}`);
-  console.log(`  ${color.bold("Hide console").padEnd(16)} ${badge(cfg.hideConsole)}`);
-  console.log(`  ${color.bold("Proxy pool").padEnd(16)} ${badge(cfg.proxyEnabled)}`);
-  console.log(`  ${color.bold("Dashboard").padEnd(16)} ${badge(cfg.dashboard)}`);
-  console.log(`  ${color.bold("Open auth").padEnd(16)} ${badge(cfg.openAuth !== false)}`);
-  console.log("  " + color.dim("─".repeat(46)));
+  console.log(color.dim("  Current config (config.json)"));
+  console.log(color.dim("  " + "─".repeat(42)));
+  console.log(`  ${color.bold("Port")}           ${color.bGreen(String(cfg.port))}`);
+  console.log(`  ${color.bold("Bind")}           ${color.bGreen(cfg.bind)}  ${color.dim(`(${hostFromBind(cfg.bind)})`)}`);
+  console.log(`  ${color.bold("Tray")}           ${cfg.tray ? color.bGreen("on") : color.gray("off")}`);
+  console.log(`  ${color.bold("Hide console")}   ${cfg.hideConsole ? color.bGreen("on") : color.gray("off")}`);
+  console.log(`  ${color.bold("Proxy pool")}     ${cfg.proxyEnabled ? color.bGreen("on") : color.gray("off")}`);
+  console.log(`  ${color.bold("Dashboard")}      ${cfg.dashboard !== false ? color.bGreen("on") : color.gray("off")}`);
+  console.log(color.dim("  " + "─".repeat(42)));
   console.log("");
 }
 
@@ -93,54 +71,29 @@ async function setBind() {
   await pause();
 }
 
-const TOGGLE_NOTES = {
-  tray: "Applies on next server start",
-  hideConsole: "Applies on next server start",
-  proxyEnabled: "Restart server to apply",
-  dashboard: "Applies immediately",
-  openAuth: "Applies immediately",
-};
-
 async function toggle(key, label) {
   const cfg = getConfig();
   const next = !cfg[key];
   saveConfig({ [key]: next });
   console.log(color.success(`  ✔ ${label} → ${next ? "on" : "off"}`));
-  const note = TOGGLE_NOTES[key];
-  if (note) console.log(color.dim(`    ${note}`));
+  if (key === "tray" || key === "hideConsole") {
+    console.log(color.dim("    Applies on next server start"));
+  }
+  if (key === "proxyEnabled") {
+    console.log(color.dim("    Restart server to apply"));
+  }
   await pause();
 }
 
-async function showRaw() {
+async function editRaw() {
   const cfg = getConfig();
   console.log("");
-  console.log(color.dim("  Full config") + color.dim(`  (${CONFIG_FILE})`));
+  console.log(color.dim("  Full JSON will open as text path:"));
+  console.log(`  ${color.bCyan("./config.json")}`);
   console.log("");
   console.log(JSON.stringify(cfg, null, 2));
   console.log("");
-  console.log(color.dim("  Edit the file in any editor, or use option 9 to open it."));
-  await pause();
-}
-
-async function openInEditor() {
-  const file = path.resolve(CONFIG_FILE);
-  console.log(color.dim(`  Opening ${file} …`));
-  const p = platform();
-  const cmd =
-    p === "win32" ? `start "" "${file}"` :
-    p === "darwin" ? `open "${file}"` :
-    `xdg-open "${file}"`;
-  exec(cmd, (err) => {
-    if (err) console.log(color.error(`  ✖ Could not open editor: ${err.message}`));
-  });
-  await pause();
-}
-
-async function resetAll() {
-  const ok = await ask(color.warn("  Reset ALL settings to defaults? [y/N]: "));
-  if (ok.toLowerCase() !== "y") return;
-  resetConfig();
-  console.log(color.success("  ✔ Defaults restored") + color.dim("  (restart server to apply port/bind)"));
+  console.log(color.dim("  Edit the file in any editor, then restart the server."));
   await pause();
 }
 
@@ -149,45 +102,45 @@ async function main() {
     clear();
     const cfg = loadConfig();
     showHeader(cfg);
-
-    section("Network");
-    console.log(row(1, "Change port", color.dim(`current: ${color.bGreen(String(cfg.port))}`)));
-    console.log(row(2, "Bind address (localhost / network)", color.dim(`current: ${color.bGreen(cfg.bind)}`)));
-
-    section("Behaviour");
-    console.log(row(3, "System tray icon", badge(cfg.tray)));
-    console.log(row(4, "Hide console on start", badge(cfg.hideConsole)));
-    console.log(row(5, "Proxy pool", badge(cfg.proxyEnabled)));
-    console.log(row(6, "Dashboard", badge(cfg.dashboard)));
-
-    section("Security");
-    console.log(row(7, "Open auth (accept any API key)", badge(cfg.openAuth !== false)));
-
-    section("Tools");
-    console.log(row(8, "Show config.json", ""));
-    console.log(row(9, "Open config.json in editor", ""));
-    console.log(row(0, "Reset to defaults", ""));
-    console.log(row("q", "Exit", ""));
-
+    console.log(`  ${color.bCyan("1")}  Change port`);
+    console.log(`  ${color.bCyan("2")}  Bind address  (localhost / network)`);
+    console.log(`  ${color.bCyan("3")}  Toggle system tray`);
+    console.log(`  ${color.bCyan("4")}  Toggle hide console`);
+    console.log(`  ${color.bCyan("5")}  Toggle proxy pool`);
+    console.log(`  ${color.bCyan("6")}  Toggle dashboard`);
+    console.log(`  ${color.bCyan("7")}  Show config.json`);
+    console.log(`  ${color.bCyan("8")}  Reset to defaults`);
+    console.log(`  ${color.bCyan("0")}  Exit`);
     console.log("");
     const choice = await ask(color.bold("  Select: "));
 
     if (choice === "1") await setPort();
     else if (choice === "2") await setBind();
-    else if (choice === "3") await toggle("tray", "System tray");
+    else if (choice === "3") await toggle("tray", "Tray");
     else if (choice === "4") await toggle("hideConsole", "Hide console");
     else if (choice === "5") await toggle("proxyEnabled", "Proxy pool");
     else if (choice === "6") await toggle("dashboard", "Dashboard");
-    else if (choice === "7") await toggle("openAuth", "Open auth");
-    else if (choice === "8") await showRaw();
-    else if (choice === "9") await openInEditor();
-    else if (choice === "0") await resetAll();
-    else if (choice.toLowerCase() === "q" || choice.toLowerCase() === "exit") {
+    else if (choice === "7") await editRaw();
+    else if (choice === "8") {
+      const ok = await ask(color.warn("  Reset all settings? [y/N]: "));
+      if (ok.toLowerCase() === "y") {
+        // rewrite defaults
+        const defaults = {
+          port: 8787,
+          bind: "network",
+          tray: true,
+          hideConsole: false,
+          proxyEnabled: true,
+          dashboard: true,
+        };
+        fs.writeFileSync("./config.json", JSON.stringify(defaults, null, 2));
+        loadConfig();
+        console.log(color.success("  ✔ Defaults restored"));
+      }
+      await pause();
+    } else if (choice === "0" || choice === "q" || choice === "exit") {
       console.log(color.dim("\n  Bye.\n"));
       break;
-    } else {
-      console.log(color.warn(`  ✖ Unknown choice: ${choice}`));
-      await pause();
     }
   }
   rl.close();

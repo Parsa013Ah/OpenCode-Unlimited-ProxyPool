@@ -136,7 +136,7 @@ const TEST_HOST = "opencode.ai";
 const TEST_PORT = 443;
 const FETCH_TIMEOUT_MS = 12_000;
 const CACHE_FILE = process.env.PROXY_CACHE_FILE || "./proxy-cache.json";
-const CACHE_MAX_AGE_MS = parseInt(process.env.PROXY_CACHE_MAX_AGE_MS || String(24 * 60 * 60 * 1000), 10);
+const CACHE_MAX_AGE_MS = parseInt(process.env.PROXY_CACHE_MAX_AGE_MS || String(2 * 60 * 60 * 1000), 10);
 const CACHE_MAX_ENTRIES = 300;
 
 const config = {
@@ -367,13 +367,29 @@ function testProxy(proxy) {
           const latency = Date.now() - start;
           const body = Buffer.concat(chunks).toString().trim();
           let ok = false;
-          if (body.startsWith("{") || body.startsWith("[")) {
+          // STRICT: only accept real model output OR a clear rate-limit JSON.
+          // Random JSON / HTML / empty / connection-ish 200s cause false positives
+          // (proxies that later ECONNRESET on real traffic).
+          if (body.startsWith("{")) {
             try {
-              JSON.parse(body);
-              ok = true;
+              const j = JSON.parse(body);
+              if (j?.choices?.[0]?.message?.content) ok = true;
+              else if (j?.choices?.[0]?.delta?.content) ok = true;
+              else {
+                const msg = String(j?.error?.message || j?.message || "").toLowerCase();
+                const typ = String(j?.error?.type || j?.type || "").toLowerCase();
+                if (
+                  msg.includes("rate limit") ||
+                  msg.includes("freeusagelimit") ||
+                  msg.includes("quota") ||
+                  typ.includes("rate_limit")
+                ) {
+                  ok = true;
+                }
+              }
             } catch {}
           }
-          if (!ok && (res.statusCode === 200 || res.statusCode === 429)) ok = true;
+          if (!ok && res.statusCode === 429) ok = true;
           finish(
             ok
               ? {

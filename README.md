@@ -1,12 +1,8 @@
 # opencode-free-proxy
 
-🌐 **English** | [🇮🇷 **فارسی**](README.fa.md)
-
 **Local OpenAI + Anthropic compatible gateway for OpenCode free-tier models.**
 
 One small Node server. Works with Cursor, Continue, Cline, Claude Code, aider, opencode CLI, or plain `curl`.
-
-> 🙏 **Credits:** Special thanks to [bigdata2211it-web](https://github.com/bigdata2211it-web) for the original [opencode-free-proxy](https://github.com/bigdata2211it-web/opencode-free-proxy) project — this repository is a fork with an improved config experience (terminal menu + dashboard) and bug fixes.
 
 ---
 
@@ -22,7 +18,7 @@ node server.mjs
 Server listens on `http://localhost:8787`.
 
 Open the **dashboard** in your browser: [http://localhost:8787/](http://localhost:8787/)  
-— live request/token stats + settings (port, localhost/network, tray, hide console, proxy pool, open auth).
+— live request/token stats + settings (port, localhost/network, tray, hide console).
 
 Settings are saved to `config.json` next to the server (auto-created).  
 API keys are auto-generated in `api-keys.json` on first run.
@@ -42,8 +38,7 @@ Created automatically on first run. Edit the file **or** use the web dashboard.
   "tray": true,
   "hideConsole": false,
   "proxyEnabled": true,
-  "dashboard": true,
-  "openAuth": true
+  "dashboard": true
 }
 ```
 
@@ -55,7 +50,6 @@ Created automatically on first run. Edit the file **or** use the web dashboard.
 | `hideConsole` | `true` / `false` | Hide terminal (Windows, with tray) |
 | `proxyEnabled` | `true` / `false` | Free-proxy rotation pool |
 | `dashboard` | `true` / `false` | Web UI at `/` |
-| `openAuth` | `true` / `false` | Accept any API key (handy for Hermes / local tools) |
 
 ### Settings menu (in project)
 
@@ -65,7 +59,7 @@ npm run config
 node menu.mjs
 ```
 
-Interactive terminal menu: port, bind (localhost/network), tray, hide console, proxy pool, dashboard, open auth — every entry shows its **current value**, and you can open `config.json` directly in your editor. Toggling **open auth** applies immediately.
+Interactive terminal menu: port, bind (localhost/network), tray, hide console, proxy pool, dashboard.
 
 **Just run:**
 
@@ -235,8 +229,6 @@ node server.mjs
 | `PROXY_PORT` | `8787` | Listen port |
 | `KEYS_FILE` | `./api-keys.json` | API keys path |
 | `PROXY_ENABLED` | `1` | Set `0` to disable pool (direct only) |
-| `PROXY_DASHBOARD` | `1` | Set `0` to disable the web dashboard |
-| `PROXY_OPEN_AUTH` | `1` | Set `0` to require a valid key from `api-keys.json` |
 | `PROXY_SOURCES` | (built-in 60+) | `type=url,type=url,...` override |
 | `PROXY_SAMPLE_SIZE` | `350` | Candidates tested per refresh |
 | `PROXY_POOL_SIZE` | `30` | Max working proxies kept |

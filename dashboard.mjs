@@ -24,31 +24,21 @@ export function mountDashboard(app) {
     const next = {};
     if (body.port != null) {
       const p = parseInt(body.port, 10);
-      if (Math.floor(p) === p && p >= 1 && p <= 65535) next.port = p;
+      if (p >= 1 && p <= 65535) next.port = p;
     }
     if (body.bind === "localhost" || body.bind === "network") next.bind = body.bind;
-    for (const k of ["tray", "hideConsole", "proxyEnabled", "dashboard", "openAuth"]) {
-      if (typeof body[k] === "boolean") next[k] = body[k];
-    }
-    saveConfig(next);
+    if (typeof body.tray === "boolean") next.tray = body.tray;
+    if (typeof body.hideConsole === "boolean") next.hideConsole = body.hideConsole;
+    if (typeof body.proxyEnabled === "boolean") next.proxyEnabled = body.proxyEnabled;
+    if (typeof body.dashboard === "boolean") next.dashboard = body.dashboard;
+    const cfg = saveConfig(next);
     res.json({
       ok: true,
       config: publicConfig(),
-      note: restartNote(next),
-      restartRequired: next.port != null || next.bind != null || next.proxyEnabled != null,
+      note: "Port / bind changes apply after restart. Tray/hide apply next launch.",
+      restartRequired: next.port != null || next.bind != null,
     });
   });
-}
-
-function restartNote(next) {
-  const parts = [];
-  if (next.port != null || next.bind != null || next.proxyEnabled != null)
-    parts.push("Restart required for port / bind / proxy pool");
-  if (next.tray != null || next.hideConsole != null)
-    parts.push("Tray &amp; hide apply on next launch");
-  if (next.openAuth != null || next.dashboard != null)
-    parts.push("Open auth &amp; dashboard apply immediately");
-  return parts.join(" · ");
 }
 
 function publicConfig() {
@@ -61,7 +51,6 @@ function publicConfig() {
     hideConsole: c.hideConsole,
     proxyEnabled: c.proxyEnabled,
     dashboard: c.dashboard,
-    openAuth: c.openAuth,
   };
 }
 
@@ -86,8 +75,6 @@ function htmlPage() {
     --yellow: #fbbf24;
     --red: #f87171;
     --blue: #60a5fa;
-    --accent1: #1e90ff;
-    --accent2: #7c3aed;
   }
   * { box-sizing: border-box; }
   body {
@@ -126,55 +113,20 @@ function htmlPage() {
   th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-weight: 500; }
   .ok { color: var(--green); } .err { color: var(--red); }
-
-  /* ── Settings ─────────────────────────────────────────────── */
+  .settings label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
   .settings .field { margin-bottom: 14px; }
-  .settings .field > label { display: block; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
-  .settings .hint { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.45; }
-  .settings .hint code { color: var(--cyan); background: rgba(61,224,255,.08); padding: 1px 6px; border-radius: 6px; font-size: 12px; }
   input[type=number], select {
     width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);
-    background: var(--bg); color: var(--text); font-size: 14px; outline: none;
-    transition: border-color .15s, box-shadow .15s;
+    background: var(--bg); color: var(--text); font-size: 14px;
   }
-  input[type=number]:focus, select:focus { border-color: var(--accent1); box-shadow: 0 0 0 3px rgba(30,144,255,.15); }
-  .divider { border: none; border-top: 1px dashed var(--border); margin: 14px 0; }
-
-  .toggle-row {
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 9px 0; border-bottom: 1px dashed var(--border);
-  }
-  .toggle-row:last-of-type { border-bottom: none; }
-  .toggle-row .ctl { display: flex; flex-direction: column; gap: 2px; }
-  .toggle-row .ctl b { font-size: 13.5px; font-weight: 600; }
-  .toggle-row .ctl span { font-size: 12px; color: var(--muted); }
-
-  .switch { position: relative; width: 42px; height: 23px; flex: none; }
-  .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
-  .slider {
-    position: absolute; inset: 0; background: #2a3547; border-radius: 999px;
-    transition: background .18s; cursor: pointer;
-  }
-  .slider::before {
-    content: ""; position: absolute; width: 17px; height: 17px; left: 3px; top: 3px;
-    background: #8b9bb0; border-radius: 50%; transition: transform .18s, background .18s;
-  }
-  .switch input:checked + .slider { background: linear-gradient(135deg, var(--accent1), var(--accent2)); }
-  .switch input:checked + .slider::before { transform: translateX(19px); background: #fff; }
-  .switch input:focus-visible + .slider { box-shadow: 0 0 0 3px rgba(30,144,255,.25); }
-
+  .checks { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 16px; }
+  .checks label { display: flex; align-items: center; gap: 10px; color: var(--text); cursor: pointer; }
   button {
-    background: linear-gradient(135deg, var(--accent1), var(--accent2)); color: white; border: none;
+    background: linear-gradient(135deg, #1e90ff, #7c3aed); color: white; border: none;
     padding: 11px 18px; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px;
-    width: 100%; transition: filter .15s, opacity .15s;
   }
-  button:hover:not(:disabled) { filter: brightness(1.08); }
-  button:disabled { opacity: .55; cursor: default; }
-
-  .note { font-size: 12px; color: var(--muted); margin-top: 12px; line-height: 1.5; border-radius: 10px; padding: 10px 12px; background: rgba(255,255,255,.03); border: 1px solid var(--border); }
-  .note.ok { color: var(--green); border-color: #1f3d32; background: rgba(52,211,153,.06); }
-  .note.warn { color: var(--yellow); border-color: #4d3b14; background: rgba(251,191,36,.06); }
-  .note.err { color: var(--red); border-color: #4d1f1f; background: rgba(248,113,113,.06); }
+  button:hover { filter: brightness(1.08); }
+  .note { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.45; }
   .note strong { color: var(--yellow); }
   footer { text-align: center; color: var(--muted); font-size: 12px; padding: 20px; }
 </style>
@@ -212,48 +164,27 @@ function htmlPage() {
     </div>
     <div class="card settings">
       <h2>Settings</h2>
-      <form id="cfgForm" autocomplete="off">
-        <div class="field">
-          <label for="port">Port</label>
-          <input type="number" id="port" min="1" max="65535" />
-          <div class="hint">Needs a <strong style="color:var(--yellow)">restart</strong> to take effect.</div>
-        </div>
-        <div class="field">
-          <label for="bind">Bind address</label>
-          <select id="bind">
-            <option value="localhost">Localhost only (this PC)</option>
-            <option value="network">Network (LAN access)</option>
-          </select>
-          <div class="hint">Effective host: <code id="bindHost">—</code></div>
-        </div>
-        <hr class="divider"/>
-        <div class="toggle-row">
-          <div class="ctl"><b>System tray icon</b><span>Next launch</span></div>
-          <label class="switch"><input type="checkbox" id="sw_tray"/><span class="slider"></span></label>
-        </div>
-        <div class="toggle-row">
-          <div class="ctl"><b>Hide console on start</b><span>Windows · next launch</span></div>
-          <label class="switch"><input type="checkbox" id="sw_hideConsole"/><span class="slider"></span></label>
-        </div>
-        <div class="toggle-row">
-          <div class="ctl"><b>Proxy pool enabled</b><span>Auto-rotate proxies · restart</span></div>
-          <label class="switch"><input type="checkbox" id="sw_proxyEnabled"/><span class="slider"></span></label>
-        </div>
-        <div class="toggle-row">
-          <div class="ctl"><b>Dashboard page</b><span>This page · immediate</span></div>
-          <label class="switch"><input type="checkbox" id="sw_dashboard"/><span class="slider"></span></label>
-        </div>
-        <div class="toggle-row">
-          <div class="ctl"><b>Open auth</b><span>Accept any API key · immediate</span></div>
-          <label class="switch"><input type="checkbox" id="sw_openAuth"/><span class="slider"></span></label>
-        </div>
-        <hr class="divider"/>
-        <button type="submit" id="save">Save settings</button>
-        <div class="note" id="saveNote">
-          Port, bind &amp; proxy pool need a <strong>restart</strong>; tray / hide apply on next launch.
-          Edit <strong>config.json</strong> beside the server — or <strong>npm run config</strong> — if you prefer the CLI.
-        </div>
-      </form>
+      <div class="field">
+        <label>Port</label>
+        <input type="number" id="port" min="1" max="65535" />
+      </div>
+      <div class="field">
+        <label>Bind address</label>
+        <select id="bind">
+          <option value="localhost">Localhost only (this PC)</option>
+          <option value="network">Network (LAN access)</option>
+        </select>
+      </div>
+      <div class="checks">
+        <label><input type="checkbox" id="tray"/> System tray icon</label>
+        <label><input type="checkbox" id="hideConsole"/> Hide console on start (Windows)</label>
+        <label><input type="checkbox" id="proxyEnabled"/> Proxy pool enabled</label>
+      </div>
+      <button id="save">Save settings</button>
+      <div class="note" id="saveNote">
+        Port &amp; bind need a <strong>restart</strong> to apply. Tray / hide apply on next launch.
+        Edit <strong>config.json</strong> next to the server if you prefer.
+      </div>
     </div>
   </div>
 
@@ -271,27 +202,6 @@ const $ = (id) => document.getElementById(id);
 function fmt(n){ return (n||0).toLocaleString(); }
 function time(ts){ return new Date(ts).toLocaleTimeString(); }
 
-// ── Dirty tracking: once the user touches the form, stop overwriting it
-//    with server values until a save succeeds (fixes the 2s-poll reset bug).
-let dirty = false;
-const formEls = [...document.querySelectorAll('#cfgForm input, #cfgForm select')];
-function markDirty(){ dirty = true; }
-formEls.forEach(el => { el.addEventListener('input', markDirty); el.addEventListener('change', markDirty); });
-
-function fillForm(c){
-  $('port').value = c.port;
-  $('bind').value = c.bind;
-  $('bindHost').textContent = c.host || '-';
-  for (const k of ['tray','hideConsole','proxyEnabled','dashboard','openAuth'])
-    $('sw_'+k).checked = !!c[k];
-}
-
-function setNote(kind, html){
-  const el = $('saveNote');
-  el.className = 'note ' + kind;
-  el.innerHTML = html;
-}
-
 async function refresh(){
   try{
     const r = await fetch('/api/stats');
@@ -308,7 +218,12 @@ async function refresh(){
     $('uptime').textContent = 'uptime '+s.uptime;
     $('live').textContent = '● live';
 
-    if (!dirty) fillForm(c);
+    // settings form (only fill if not focused)
+    if(document.activeElement?.id !== 'port') $('port').value = c.port;
+    if(document.activeElement?.id !== 'bind') $('bind').value = c.bind;
+    $('tray').checked = !!c.tray;
+    $('hideConsole').checked = !!c.hideConsole;
+    $('proxyEnabled').checked = !!c.proxyEnabled;
 
     const tb = $('recent');
     tb.innerHTML = (s.lastRequests||[]).map(x => '<tr>'+
@@ -329,31 +244,21 @@ async function refresh(){
   }
 }
 
-$('cfgForm').addEventListener('submit', async (ev) => {
-  ev.preventDefault();
+$('save').onclick = async () => {
   const body = {
     port: parseInt($('port').value,10),
     bind: $('bind').value,
-    tray: $('sw_tray').checked,
-    hideConsole: $('sw_hideConsole').checked,
-    proxyEnabled: $('sw_proxyEnabled').checked,
-    dashboard: $('sw_dashboard').checked,
-    openAuth: $('sw_openAuth').checked,
+    tray: $('tray').checked,
+    hideConsole: $('hideConsole').checked,
+    proxyEnabled: $('proxyEnabled').checked,
   };
-  const btn = $('save');
-  btn.disabled = true; btn.textContent = 'Saving…';
-  try{
-    const r = await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
-    const d = await r.json();
-    if (!d.ok) throw new Error('bad response');
-    dirty = false;             // re-sync form from server
-    setNote(d.restartRequired ? 'warn' : 'ok', d.note || (d.restartRequired ? 'Saved — restart the server to apply.' : 'Saved.'));
-    refresh();
-  }catch(e){
-    setNote('err', 'Save failed — is the server running? (status: '+e.message+')');
-  }
-  btn.disabled = false; btn.textContent = 'Save settings';
-});
+  const r = await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const d = await r.json();
+  $('saveNote').innerHTML = d.restartRequired
+    ? 'Saved. <strong>Restart the server</strong> for port/bind to take effect.'
+    : 'Saved.';
+  refresh();
+};
 
 refresh();
 setInterval(refresh, 2000);
