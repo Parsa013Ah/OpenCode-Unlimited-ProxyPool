@@ -1,6 +1,6 @@
 {
   "name": "opencode-free-proxy",
-  "version": "1.3.0",
+  "version": "1.6.0",
   "description": "High-performance local proxy for OpenCode free-tier AI models \u2014 OpenAI + Anthropic compatible, with auto-rotating proxy pool",
   "type": "module",
   "main": "server.mjs",

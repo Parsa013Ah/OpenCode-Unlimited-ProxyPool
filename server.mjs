@@ -2,7 +2,7 @@ import express from "express";
 import crypto from "crypto";
 import https from "https";
 import fs from "fs";
-import { initProxyPool, getProxyAgents, banProxy, banProxySoft, getPoolInfo } from "./proxy-pool.mjs";
+import { initProxyPool, getProxyAgents, banProxy, banProxySoft, getPoolInfo, scheduleBackgroundScan, isPersonalAgent, markProxySuccess, markProxyRateLimit, setScanMode } from "./proxy-pool.mjs";
 import {
   printBanner, printEndpoints, printModels, printKeys, log, color, Spinner,
 } from "./banner.mjs";
@@ -31,7 +31,7 @@ else if (process.env.PROXY_ENABLED == null) process.env.PROXY_ENABLED = "1";
 const PORT = cfg.port;
 const HOST = hostFromBind(cfg.bind);
 const OC_VERSION = "1.15.0";
-const PROXY_VERSION = "15";
+const PROXY_VERSION = "16";
 
 // ── API Keys ───────────────────────────────────────────────────────
 const keysFile = process.env.KEYS_FILE || "./api-keys.json";
@@ -152,19 +152,6 @@ function getSession(user) {
   return userSessions[user].id;
 }
 
-function forceNewSession(user) {
-  userSessions[user] = { id: ocId("ses"), ts: Date.now() };
-  return userSessions[user].id;
-}
-
-/** On rate-limit, try other free models (same request body). */
-function modelFallbackChain(primary) {
-  const chain = [primary];
-  for (const m of MODELS) {
-    if (!chain.includes(m)) chain.push(m);
-  }
-  return chain.slice(0, 4); // primary + up to 3 alternates
-}
 
 
 // ── Zen API transport ──────────────────────────────────────────────
@@ -638,54 +625,54 @@ function pipeZenAsAnthropic(zenOpts, body, model, res, inputTokens) {
 // Unified runner: direct → proxies → alternate free models on rate-limit
 async function sendZenRequest({ model, messages, stream, tools, tool_choice, sessionId, res, format = "openai", inputTokens = 0 }) {
   const agents = [null, ...getProxyAgents()];
-  const modelsToTry = modelFallbackChain(model);
   let lastMsg = "All upstream attempts failed";
   let hadRateLimit = false;
-  let attempt = 0;
 
-  for (const tryModel of modelsToTry) {
-    if (hadRateLimit && res.locals?.user) {
-      sessionId = forceNewSession(res.locals.user);
+  for (let i = 0; i < agents.length; i++) {
+    const agent = agents[i];
+    const label = agent ? `proxy ${i}/${agents.length - 1}` : "direct";
+    const { body, options } = zenRequest(model, messages, stream, tools, tool_choice, sessionId, agent);
+    log("TRY", `${i + 1}/${agents.length} via ${label}`, "info");
+
+    let outcome;
+    if (format === "anthropic" && stream) {
+      outcome = await pipeZenAsAnthropic(options, body, model, res, inputTokens);
+    } else if (format === "anthropic") {
+      outcome = await zenRequestFull(options, body);
+    } else {
+      outcome = await pipeZenResponse(options, body, stream, res);
     }
-    for (let i = 0; i < agents.length; i++) {
-      attempt++;
-      const agent = agents[i];
-      const label = agent ? `proxy ${i}/${agents.length - 1}` : "direct";
-      const tag = tryModel === model ? label : `${label}·${tryModel}`;
-      const { body, options } = zenRequest(tryModel, messages, stream, tools, tool_choice, sessionId, agent);
-      log("TRY", `${attempt} via ${tag}`, "info");
 
-      let outcome;
-      if (format === "anthropic" && stream) {
-        outcome = await pipeZenAsAnthropic(options, body, tryModel, res, inputTokens);
-      } else if (format === "anthropic") {
-        outcome = await zenRequestFull(options, body);
-      } else {
-        outcome = await pipeZenResponse(options, body, stream, res);
+    if (outcome.kind === "ok") {
+      if (format === "anthropic" && !stream) {
+        res.json(openAIToAnthropic(outcome.data, model, inputTokens));
       }
-
-      if (outcome.kind === "ok") {
-        if (format === "anthropic" && !stream) {
-          res.json(openAIToAnthropic(outcome.data, tryModel, inputTokens));
-        }
-        const tin = outcome.data?.usage?.prompt_tokens || inputTokens || 0;
-        const tout = outcome.data?.usage?.completion_tokens || 0;
-        recordRequest({
-          user: res.locals?.user, model: tryModel, stream, ok: true,
-          tokensIn: tin, tokensOut: tout, ms: Date.now() - (res.locals?.t0 || Date.now()),
-        });
-        return;
+      const tin = outcome.data?.usage?.prompt_tokens || inputTokens || 0;
+      const tout = outcome.data?.usage?.completion_tokens || 0;
+      recordRequest({
+        user: res.locals?.user, model, stream, ok: true,
+        tokensIn: tin, tokensOut: tout, ms: Date.now() - (res.locals?.t0 || Date.now()),
+      });
+      // Promote this path from REAL traffic (not from scanner)
+      if (agent) markProxySuccess(agent);
+      if (!agent) {
+        scheduleBackgroundScan("direct-ok");
+      } else if (isPersonalAgent(agent)) {
+        scheduleBackgroundScan("personal-ok");
       }
+      return;
+    }
 
-      lastMsg = outcome.msg || "Upstream error";
-      if (outcome.kind === "rate_limit") {
-        hadRateLimit = true;
-        log("LIMIT", `via ${tag}: ${outcome.msg}`, "warn");
-        if (agent) banProxy(agent);
-        if (!agent) break; // try next free model
-      } else {
-        log("FAIL", `via ${tag}: ${outcome.msg}`, "error");
-        if (agent) banProxySoft(agent);
+    lastMsg = outcome.msg || "Upstream error";
+    if (outcome.kind === "rate_limit") {
+      // Don't kill the proxy — briefly skip this public IP and try next
+      hadRateLimit = true;
+      log("LIMIT", `via ${label}: ${outcome.msg}`, "warn");
+      if (agent) markProxyRateLimit(agent, 30_000);
+    } else {
+      log("FAIL", `via ${label}: ${outcome.msg}`, "error");
+      if (agent && !isPersonalAgent(agent)) {
+        banProxySoft(agent);
       }
     }
   }
@@ -693,7 +680,7 @@ async function sendZenRequest({ model, messages, stream, tools, tool_choice, ses
   const code = hadRateLimit ? 429 : 502;
   const type = hadRateLimit ? "rate_limit_error" : "upstream_error";
   const message = hadRateLimit
-    ? `${lastMsg} (free tier busy — smaller chat or wait 1–2 min)`
+    ? `${lastMsg} (free tier busy — wait 1–2 min or use a personal proxy)`
     : lastMsg;
 
   recordRequest({
@@ -806,6 +793,7 @@ printKeys(apiKeys);
 const bootSpin = new Spinner("warming proxy pool…");
 bootSpin.start();
 
+if (cfg.scanMode) setScanMode(cfg.scanMode);
 initProxyPool();
 
 const server = app.listen(PORT, HOST, async () => {

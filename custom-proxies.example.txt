@@ -1,0 +1,19 @@
+# Personal proxies — copy to custom-proxies.txt
+# One proxy per line. Supported formats:
+#
+#   host:port
+#   host:port:user:pass
+#   user:pass@host:port
+#   http://host:port
+#   http://user:pass@host:port
+#   socks5://host:port
+#   socks5://user:pass@host:port
+#   socks4://host:port
+#   http|host:port
+#   socks5:host:port
+#
+# Lines starting with # are ignored.
+
+# 1.2.3.4:8080
+# user:pass@5.6.7.8:1080
+# socks5://user:pass@9.9.9.9:1080

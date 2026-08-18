@@ -19,6 +19,8 @@ const DEFAULTS = {
 
   // Proxy pool
   proxyEnabled: true,
+  // "normal" = sampled scan | "super" = all unique proxies (slow)
+  scanMode: "normal",
 
   // UI / stats
   dashboard: true,
@@ -52,6 +54,9 @@ export function loadConfig() {
   if (process.env.PROXY_TRAY === "1") config.tray = true;
   if (process.env.PROXY_HIDE_CONSOLE === "1") config.hideConsole = true;
   if (process.env.PROXY_ENABLED === "0") config.proxyEnabled = false;
+  if (process.env.PROXY_SCAN_MODE === "super" || process.env.PROXY_SCAN_MODE === "normal") {
+    config.scanMode = process.env.PROXY_SCAN_MODE;
+  }
   if (process.argv.includes("--tray")) config.tray = true;
   if (process.argv.includes("--hide")) config.hideConsole = true;
   if (process.argv.includes("--no-tray")) config.tray = false;

@@ -1,0 +1,5 @@
+socks5://proxyuser2:proxy123proxy@91.234.39.60:1080
+socks5://proxyuser:Parsa123proxy@141.11.107.193:1080
+socks5://proxyuser2:proxy123proxy@31.56.89.97:1080
+
+

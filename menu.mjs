@@ -36,6 +36,7 @@ function showHeader(cfg) {
   console.log(`  ${color.bold("Tray")}           ${cfg.tray ? color.bGreen("on") : color.gray("off")}`);
   console.log(`  ${color.bold("Hide console")}   ${cfg.hideConsole ? color.bGreen("on") : color.gray("off")}`);
   console.log(`  ${color.bold("Proxy pool")}     ${cfg.proxyEnabled ? color.bGreen("on") : color.gray("off")}`);
+  console.log(`  ${color.bold("Scan mode")}      ${color.bGreen(cfg.scanMode || "normal")}`);
   console.log(`  ${color.bold("Dashboard")}      ${cfg.dashboard !== false ? color.bGreen("on") : color.gray("off")}`);
   console.log(color.dim("  " + "─".repeat(42)));
   console.log("");
@@ -85,6 +86,21 @@ async function toggle(key, label) {
   await pause();
 }
 
+async function setScanModeMenu() {
+  console.log("");
+  console.log(`  ${color.bCyan("1")}  normal  ${color.dim("— sample + capped zen test (fast)")}`);
+  console.log(`  ${color.bCyan("2")}  super   ${color.dim("— ALL unique proxies, full zen test (slow)")}`);
+  const v = await ask("  Choose [1/2]: ");
+  if (v === "1") {
+    saveConfig({ scanMode: "normal" });
+    console.log(color.success("  ✔ Scan mode = normal") + color.dim("  (restart to apply)"));
+  } else if (v === "2") {
+    saveConfig({ scanMode: "super" });
+    console.log(color.success("  ✔ Scan mode = super") + color.dim("  (restart — may take a long time)"));
+  }
+  await pause();
+}
+
 async function editRaw() {
   const cfg = getConfig();
   console.log("");
@@ -107,9 +123,10 @@ async function main() {
     console.log(`  ${color.bCyan("3")}  Toggle system tray`);
     console.log(`  ${color.bCyan("4")}  Toggle hide console`);
     console.log(`  ${color.bCyan("5")}  Toggle proxy pool`);
-    console.log(`  ${color.bCyan("6")}  Toggle dashboard`);
-    console.log(`  ${color.bCyan("7")}  Show config.json`);
-    console.log(`  ${color.bCyan("8")}  Reset to defaults`);
+    console.log(`  ${color.bCyan("6")}  Scan mode  (normal / super)`);
+    console.log(`  ${color.bCyan("7")}  Toggle dashboard`);
+    console.log(`  ${color.bCyan("8")}  Show config.json`);
+    console.log(`  ${color.bCyan("9")}  Reset to defaults`);
     console.log(`  ${color.bCyan("0")}  Exit`);
     console.log("");
     const choice = await ask(color.bold("  Select: "));
@@ -119,19 +136,21 @@ async function main() {
     else if (choice === "3") await toggle("tray", "Tray");
     else if (choice === "4") await toggle("hideConsole", "Hide console");
     else if (choice === "5") await toggle("proxyEnabled", "Proxy pool");
-    else if (choice === "6") await toggle("dashboard", "Dashboard");
-    else if (choice === "7") await editRaw();
-    else if (choice === "8") {
+    else if (choice === "6") await setScanModeMenu();
+    else if (choice === "7") await toggle("dashboard", "Dashboard");
+    else if (choice === "8") await editRaw();
+    else if (choice === "9") {
       const ok = await ask(color.warn("  Reset all settings? [y/N]: "));
       if (ok.toLowerCase() === "y") {
-        // rewrite defaults
         const defaults = {
           port: 8787,
           bind: "network",
           tray: true,
           hideConsole: false,
           proxyEnabled: true,
+          scanMode: "normal",
           dashboard: true,
+          openAuth: true,
         };
         fs.writeFileSync("./config.json", JSON.stringify(defaults, null, 2));
         loadConfig();
