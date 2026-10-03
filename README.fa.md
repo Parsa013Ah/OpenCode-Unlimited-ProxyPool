@@ -1,37 +1,159 @@
-# opencode-free-proxy
+# OpenCode Free Proxy
 
-🌐 [**English**](README.md) | **فارسی**
+🌐 [English](README.md) | **فارسی**
 
-**درگاه محلی سازگار با OpenAI + Anthropic برای مدل‌های رایگان OpenCode.**
+پروکسی محلی سازگار با OpenAI و Anthropic که جلوی مدل‌های رایگان [OpenCode Zen](https://opencode.ai) قرار می‌گیره.
 
-یک سرور Node کوچک که با Cursor، Continue، Cline، Claude Code، aider، opencode CLI یا حتی `curl` ساده کار می‌کند.
-
-> 🙏 **تشکر ویژه:** از [bigdata2211it-web](https://github.com/bigdata2211it-web) بابت پروژه‌ی اصلی [opencode-free-proxy](https://github.com/bigdata2211it-web/opencode-free-proxy) — این مخزن یک فورک با تجربه‌ی کانفیگ بهینه‌شده (منوی ترمینال + داشبورد) و رفع باگ‌هاست.
-
----
+- چرخش خودکار پروکسی‌های **عمومی و شخصی** (HTTP / SOCKS4 / SOCKS5)
+- **پشتیبانی از V2Ray / Xray**: لینک‌های `vmess://`، `vless://` (از جمله REALITY)، `trojan://`، `ss://`، سابسکریپشن و کانفیگ JSON
+- داشبورد زنده (درخواست‌ها، توکن‌ها، تنظیمات)، آیکن سیستم‌تری، منوی تنظیمات ترمینال
+- کش دیسکی پروکسی‌های سالم
 
 ## شروع سریع
 
 ```bash
-git clone <this-repo>
-cd opencode-free-proxy
 npm install
-node server.mjs
+npm start
 ```
 
-سرور روی `http://localhost:8787` گوش می‌دهد.
+- داشبورد: `http://127.0.0.1:8787/`
+- آدرس پایه OpenAI: `http://127.0.0.1:8787/v1`
+- لیست مدل‌ها: `http://127.0.0.1:8787/v1/models`
+- سلامت سرویس: `http://127.0.0.1:8787/health`
 
-**داشبورد** را در مرورگر باز کنید: [http://localhost:8787/](http://localhost:8787/)  
-— آمار زنده‌ی درخواست/توکن + تنظیمات (پورت، localhost/network، tray، مخفی‌سازی کنسول، استخر پروکسی، open auth).
+به‌صورت پیش‌فرض هر متنی به‌عنوان API key قبول می‌شه (`openAuth`).
 
-تنظیمات در `config.json` کنار سرور ذخیره می‌شوند (به‌صورت خودکار ساخته می‌شود).  
-کلیدهای API در اولین اجرا به‌صورت خودکار در `api-keys.json` ساخته می‌شوند.
+```bash
+curl http://127.0.0.1:8787/v1/chat/completions \
+  -H "Authorization: Bearer local" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"deepseek-v4-flash-free","messages":[{"role":"user","content":"hi"}]}'
+```
 
----
+## ساختار پروژه
 
-## تنظیمات (`config.json`)
+```text
+├── config/                      ← فایل‌هایی که خودتان ویرایش می‌کنید
+│   ├── custom-proxies.example.txt   (کپی کنید به custom-proxies.txt)
+│   ├── v2ray.example.txt            (کپی کنید به v2ray.txt)
+│   └── v2ray/                       (اختیاری: فایل‌های *.json اینجا)
+├── data/                        ← وضعیت زمان اجرا (خودکار ساخته می‌شه، توی git نیست)
+│   ├── config.json, api-keys.json, proxy-cache.json
+│   └── xray/                        (Xray-core دانلودشده + کانفیگ تولیدشده)
+├── src/
+│   ├── server.mjs               سرور HTTP و مسیرها (OpenAI / Anthropic)
+│   ├── config.mjs, paths.mjs, stats.mjs
+│   ├── cli/menu.mjs             منوی تنظیمات ترمینال
+│   ├── ui/                      banner، dashboard، tray
+│   └── proxy/
+│       ├── pool.mjs             منطق اسکن / چرخش / بن
+│       ├── sources.mjs          لیست‌های عمومی پروکسی
+│       ├── parser.mjs, custom.mjs
+│       └── v2ray/               links، xray-config، installer، manager، loader
+└── test/                        npm test
+```
 
-در اولین اجرا به‌صورت خودکار ساخته می‌شود. فایل را ویرایش کنید **یا** از داشبورد وب استفاده کنید.
+> **آپدیت از نسخه ۱.۶ یا قدیمی‌تر؟** فایل‌های `config.json`، `api-keys.json`، `proxy-cache.json` و
+> `custom-proxies.txt` که کنار پروژه بودن، در اولین اجرا خودکار به `data/` و `config/` منتقل می‌شن.
+
+## پروکسی شخصی (پیشنهادی)
+
+پروکسی‌های عمومی رایگان معمولاً با OpenCode کار نمی‌کنن. پروکسی خودتون رو اضافه کنید:
+
+```bash
+cp config/custom-proxies.example.txt config/custom-proxies.txt
+```
+
+هر خط یک پروکسی (host می‌تونه IP یا دامنه باشه):
+
+```text
+host:port
+host:port:user:pass
+user:pass@host:port
+http://host:port            http://user:pass@host:port
+socks5://host:port          socks5://user:pass@host:port
+socks4://host:port
+http|host:port              socks5:host:port
+```
+
+یا با متغیر محیطی (جداشده با کاما یا خط جدید):
+
+```bash
+export PROXY_CUSTOM="socks5://user:pass@1.2.3.4:1080,http://5.6.7.8:8080"
+export PROXY_CUSTOM_FILE="/path/to/my-proxies.txt"
+```
+
+پروکسی‌های شخصی **اول از همه** تست می‌شن و همیشه در pool اولویت دارن.
+
+## V2Ray / Xray
+
+سرورهای V2Ray خودتون رو به‌عنوان پروکسی شخصی استفاده کنید.
+
+```bash
+cp config/v2ray.example.txt config/v2ray.txt
+```
+
+هر ترکیبی از این‌ها رو توی `config/v2ray.txt` بذارید (هر خط یک مورد):
+
+| ورودی | نمونه |
+|-------|-------|
+| لینک | `vless://UUID@host:443?security=reality&pbk=…&sid=…&flow=xtls-rprx-vision#name` |
+| لینک | `vmess://eyJ2Ij…` (فرمت base64 نرم‌افزار v2rayN) یا `vmess://UUID@host:443?type=ws…` |
+| لینک | `trojan://password@host:443?sni=host#name` |
+| لینک | `ss://BASE64(method:pass)@host:8388#name` |
+| آدرس سابسکریپشن | `https://provider.example/sub/TOKEN` |
+
+این روش‌ها هم کار می‌کنن: چسباندن لینک‌ها داخل `config/custom-proxies.txt`، **کانفیگ JSON** کامل Xray / V2Ray / v2rayN
+داخل `config/v2ray/*.json` (هر outbound از نوع vmess / vless / trojan / shadowsocks یک نود حساب می‌شه)،
+و متغیرهای `V2RAY_LINKS` و `V2RAY_SUBS`.
+
+**طرز کار:** برنامه یک پروسه [Xray-core](https://github.com/XTLS/Xray-core) اجرا می‌کنه و هر نود رو به‌صورت یک
+SOCKS5 محلی روی `127.0.0.1` در دسترس می‌ذاره (از شبکه‌ی LAN قابل دسترسی نیست). pool با این نودها مثل بقیه‌ی پروکسی‌های شخصی رفتار می‌کنه:
+
+1. نودها روی OpenCode تست می‌شن؛ **نودهای مرده حذف می‌شن** و فقط سالم‌ها در دسته‌ی شخصی می‌مونن.
+2. Xray در اولین استفاده **خودکار دانلود می‌شه** (با تأیید SHA-256) و داخل `data/xray/` ذخیره می‌شه.
+   می‌تونید باینری خودتون رو با `XRAY_PATH` یا یک mirror رو با `XRAY_DOWNLOAD_URL` بدید (اگر GitHub فیلتره).
+3. نودهای نامعتبر جداگانه رد می‌شن و دلیلش توی لاگ نوشته می‌شه؛ یک لینک خراب بقیه رو خراب نمی‌کنه.
+4. سابسکریپشن روی دیسک کش می‌شه؛ اگر سرور سابسکریپشن در دسترس نبود از آخرین لیست سالم استفاده می‌شه.
+5. اگر Xray کرش کنه خودکار دوباره اجرا می‌شه و با خروج برنامه بسته می‌شه.
+
+ترنسپورت‌های پشتیبانی‌شده: tcp (با header از نوع http)، ws، grpc، h2، httpupgrade، xhttp، kcp.
+امنیت: none، tls، **reality**. جریان (flow): `xtls-rprx-vision`.
+**پشتیبانی نمی‌شه:** hysteria / hysteria2 / tuic / wireguard، پلاگین‌های Shadowsocks (obfs و v2ray-plugin)، QUIC.
+این لینک‌ها با پیام مشخص نادیده گرفته می‌شن.
+
+| متغیر | پیش‌فرض | توضیح |
+|-------|---------|-------|
+| `V2RAY_ENABLED` | `1` | روشن/خاموش کردن V2Ray (در داشبورد و منو هم هست) |
+| `V2RAY_LINKS` | — | لینک‌ها، جداشده با فاصله یا خط جدید |
+| `V2RAY_SUBS` | — | آدرس سابسکریپشن‌ها، جداشده با فاصله یا خط جدید |
+| `V2RAY_FILE` | `config/v2ray.txt` | فایل لینک‌ها / سابسکریپشن‌ها |
+| `V2RAY_CONFIG_DIR` | `config/v2ray` | پوشه‌ی کانفیگ‌های `*.json` |
+| `XRAY_PATH` | خودکار | مسیر باینری `xray` خودتان |
+| `XRAY_DOWNLOAD_URL` | آخرین نسخه‌ی GitHub | آدرس دلخواه دانلود (zip) |
+| `V2RAY_AUTO_DOWNLOAD` | `1` | `0` یعنی هرگز دانلود نکن و `XRAY_PATH` یا `data/xray/` لازم باشه |
+| `V2RAY_BASE_PORT` | `10808` | اولین پورت SOCKS محلی (بعدش پورت‌های آزاد بعدی) |
+| `V2RAY_MAX_NODES` | `64` | حداکثر تعداد نود (سابسکریپشن‌های بزرگ بریده می‌شن) |
+| `V2RAY_TEST_TIMEOUT_MS` | `10000` | تایم‌اوت تست اتصال نود |
+| `V2RAY_SUB_TIMEOUT_MS` | `20000` | تایم‌اوت دانلود سابسکریپشن |
+| `V2RAY_DEBUG` | `0` | با `1` لاگ خود Xray هم چاپ می‌شه |
+
+> **نکته‌ی امنیتی:** فایل‌های `config/custom-proxies.txt`، `config/v2ray.txt` و `config/v2ray/*.json` شامل
+> رمز و آدرس سرور هستن. توی `.gitignore` قرار دارن؛ هرگز کامیتشون نکنید.
+
+## تنظیمات
+
+### منوی ترمینال
+
+```bash
+npm run config
+```
+
+### داشبورد وب
+
+`http://127.0.0.1:8787/` ← بخش Settings (وضعیت V2Ray کنار pool نمایش داده می‌شه).
+
+### `data/config.json` (خودکار ساخته می‌شه)
 
 ```json
 {
@@ -40,305 +162,89 @@ node server.mjs
   "tray": true,
   "hideConsole": false,
   "proxyEnabled": true,
+  "v2rayEnabled": true,
+  "scanMode": "normal",
   "dashboard": true,
   "openAuth": true
 }
 ```
 
-| کلید | مقادیر | توضیح |
-|------|--------|-------|
-| `port` | `1–65535` | پورت گوش دادن |
-| `bind` | `localhost` / `network` | فقط همین PC، یا دسترسی شبکه‌ی محلی |
-| `tray` | `true` / `false` | آیکون سینی سیستم (System tray) |
-| `hideConsole` | `true` / `false` | مخفی کردن ترمینال (ویندوز، همراه با tray) |
-| `proxyEnabled` | `true` / `false` | استخر چرخش رایگان پروکسی |
-| `dashboard` | `true` / `false` | رابط وب در `/` |
-| `openAuth` | `true` / `false` | پذیرفتن هر کلید API (مناسب برای Hermes / ابزارهای محلی) |
+| کلید | معنی |
+|------|------|
+| `port` | پورت سرور |
+| `bind` | `localhost` یا `network` (همان 0.0.0.0) |
+| `tray` | آیکن سیستم‌تری |
+| `hideConsole` | مخفی کردن ترمینال در ویندوز |
+| `proxyEnabled` | روشن/خاموش pool پروکسی |
+| `v2rayEnabled` | روشن/خاموش پشتیبانی V2Ray / Xray |
+| `scanMode` | `normal` (نمونه‌ی سریع) یا `super` (همه‌ی پروکسی‌های یکتا با تست کامل zen) |
+| `dashboard` | رابط وب روی `/` |
+| `openAuth` | قبول هر API key |
 
-**💡 نکته:** مقادیر نامعتبر (مثل پورت بیرون از بازه) هنگام بارگذاری خودکار به پیش‌فرض برمی‌گردند، پس ویرایش دستی `config.json` نمی‌تواند سرور را از کار بیندازد.
+## pool پروکسی و اسکنر
 
-### منوی تنظیمات (داخل پروژه)
+موقع شروع (و به‌صورت زمان‌بندی‌شده) pool این کارها رو انجام می‌ده:
+
+1. پروکسی‌های **شخصی** (کلاسیک و نودهای V2Ray) رو لود می‌کنه
+2. کش دیسکی پروکسی‌های عمومیِ سالمِ قبلی رو لود می‌کنه
+3. بیش از **۳۵۰ منبع لیست عمومی** (HTTP / SOCKS4 / SOCKS5) رو می‌گیره
+4. **فاز ۱:** تست اتصال (زنده هست؟)
+5. **فاز ۲:** چت واقعی با Zen فقط روی پروکسی‌های زنده؛ **rate-limit، بن و پاسخ خالی رد می‌شن**
+6. فقط پروکسی‌های **تمیز** وارد pool می‌شن (پروکسی‌های شخصی کلاسیک همیشه می‌مونن؛ نودهای V2Ray باید واقعاً وصل بشن)
+7. حین ترافیک واقعی: موفقیت ← ارتقا؛ rate-limit ← رد موقت (عمومی)؛ خطای جدی ← بن نرم (عمومی)
+
+| متغیر | پیش‌فرض | توضیح |
+|-------|---------|-------|
+| `PROXY_ENABLED` | `1` | فعال‌سازی pool |
+| `PROXY_SAMPLE_SIZE` | `2500` | اندازه‌ی نمونه |
+| `PROXY_MAX_SCAN` | `5000` | سقف اسکن عمیق |
+| `PROXY_DEEP_SCAN` | `1` | اسکن سخت‌گیرانه در refresh |
+| `PROXY_POOL_SIZE` | `50` | نگه داشتن N پروکسی سریع‌تر |
+| `PROXY_CONCURRENCY` | `200` | تست‌های موازی |
+| `PROXY_CUSTOM` | — | پروکسی‌های شخصی به‌صورت درون‌خطی |
+| `PROXY_CUSTOM_FILE` | `config/custom-proxies.txt` | فایل پروکسی‌های شخصی |
+| `PROXY_SCAN_MODE` | `normal` | `normal` یا `super` |
+| `PROXY_SOURCES` | داخلی | جایگزینی منابع عمومی (`type=url,type=url`) |
+| `PROXY_CACHE_FILE` | `data/proxy-cache.json` | فایل کش |
+| `PROXY_PORT` / کلید `port` | `8787` | پورت سرور |
 
 ```bash
-npm run config
-# یا
-node menu.mjs
-```
-
-منوی ترمینال تعاملی: پورت، bind (localhost/network)، tray، مخفی‌سازی کنسول، استخر پروکسی، داشبورد، open auth — هر گزینه **مقدار فعلی** خودش را نشان می‌دهد و می‌توانید `config.json` را مستقیم در ویرایشگر پیش‌فرض باز کنید (گزینه‌ی ۹). تغییر **open auth** بلافاصله اعمال می‌شود، بقیه بعد از ری‌استارت.
-
-**فقط اجرا کنید:**
-
-```bash
-npm install
+# پاک کردن کش خراب بعد از آپدیت
+rm -f data/proxy-cache.json
 npm start
 ```
 
-سپس `http://localhost:8787/` را باز کنید — بدون قدم اضافه.
-
----
-
 ## مدل‌ها
 
-مدل‌های رایگان هنگام راه‌اندازی از OpenCode همگام می‌شوند (و هر ۳۰ دقیقه).
+مدل‌های رایگان موقع شروع (و هر ۳۰ دقیقه) از upstream همگام می‌شن. شناسه‌های رایج:
 
-| شناسه‌ی مدل | توضیحات |
-|-------------|---------|
-| `deepseek-v4-flash-free` | DeepSeek V4 Flash (رایگان) |
-| `big-pickle` | نام مستعار رایگان |
-| `mimo-v2.5-free` | MiMo 2.5 رایگان |
-| `hy3-free` | HY3 رایگان |
-| `nemotron-3-ultra-free` | Nemotron 3 Ultra رایگان |
-| `nemotron-3.5-lightning-free` | Nemotron 3.5 Lightning رایگان |
-| `laguna-s-2.1-free` | Laguna رایگان |
+`deepseek-v4-flash-free`, `big-pickle`, `mimo-v2.5-free`, `hy3-free`, `nemotron-3-ultra-free`,
+`nemotron-3.5-lightning-free`, `laguna-s-2.1-free`
 
 ```bash
-curl http://localhost:8787/v1/models
-curl http://localhost:8787/v1/models?all=1   # کل کاتالوگ بالادست
+curl http://127.0.0.1:8787/v1/models
+curl http://127.0.0.1:8787/v1/models?all=1
 ```
 
-همه از استریم (streaming)، فراخوانی ابزار (tool calls) و پیام‌های سیستم پشتیبانی می‌کنند.
+## کلاینت‌ها
 
----
+**Hermes / Cursor / هر کلاینت OpenAI:** آدرس پایه `http://127.0.0.1:8787/v1` و API key برابر `local` (یا هر چیز دیگه).
+**سبک Anthropic:** `POST /v1/messages`
 
-## API
-
-### OpenAI — `POST /v1/chat/completions`
+## اسکریپت‌ها
 
 ```bash
-curl http://localhost:8787/v1/chat/completions \
-  -H "Authorization: Bearer ***" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "deepseek-v4-flash-free",
-    "messages": [{"role": "user", "content": "Hello"}],
-    "stream": true
-  }'
-```
-
-### Anthropic — `POST /v1/messages`
-
-```bash
-curl http://localhost:8787/v1/messages \
-  -H "x-api-key: ***" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "deepseek-v4-flash-free",
-    "system": "You are helpful.",
-    "messages": [{"role": "user", "content": "Hello"}],
-    "max_tokens": 1024,
-    "stream": true
-  }'
-```
-
-### سایر نقاط پایانی
-
-| متد | مسیر | توضیح |
-|-----|------|-------|
-| `GET` | `/v1/models` | فهرست مدل‌های موجود |
-| `GET` | `/proxies` | وضعیت زنده‌ی استخر پروکسی |
-| `GET` | `/health` | سلامت، نسخه، خلاصه‌ی استخر |
-
-احراز هویت: هر دو `Authorization: Bearer ***` و `x-api-key: ***` همه‌جا کار می‌کنند.
-
----
-
-## استفاده با ابزارها
-
-### Cursor / Continue / Cline
-
-- **Base URL:** `http://localhost:8787/v1`
-- **API Key:** از `api-keys.json`
-- **Model:** `deepseek-v4-flash-free`
-
-### Claude Code (Anthropic)
-
-- **Base URL:** `http://localhost:8787`
-- **API Key:** از `api-keys.json`
-
-### opencode CLI
-
-به `~/.config/opencode/opencode.json` اضافه کنید:
-
-```json
-{
-  "provider": {
-    "free": {
-      "name": "free",
-      "type": "openai",
-      "apiKey": "YOUR_KEY",
-      "baseURL": "http://localhost:8787/v1",
-      "models": {
-        "free/deepseek-v4-flash-free": {
-          "id": "deepseek-v4-flash-free",
-          "name": "free/deepseek-v4-flash-free",
-          "attachment": true,
-          "reasoning": true
-        }
-      }
-    }
-  }
-}
-```
-
----
-
-## استخر پروکسی
-
-وقتی سقف رایگان (rate limit) یک درخواست را رد می‌کند، سرور به‌صورت خودکار از میان استخر چرخشی پروکسی‌ها تلاش می‌کند.
-
-### طرز کار
-
-1. هنگام راه‌اندازی (و هر ~۲۵ دقیقه) **۶۰+ فهرست عمومی پروکسی** (HTTP، SOCKS4، SOCKS5) را دریافت می‌کند.
-2. نامزدها را در برابر API واقعی Zen از نظر سرعت تست می‌کند.
-3. سریع‌ترین‌هایی را که واقعاً به API می‌رسند نگه می‌دارد (موفق **یا** JSON خطای rate-limit).
-4. برنده‌ها را در `proxy-cache.json` ذخیره می‌کند تا راه‌اندازی‌های بعدی سریع‌تر باشند.
-5. در صورت rate-limit / خطا: آن پروکسی را بن می‌کند (کول‌داون طولانی یا کوتاه) و بعدی را امتحان می‌کند.
-
-مشاهده‌ی وضعیت:
-
-```bash
-curl http://localhost:8787/proxies
-curl http://localhost:8787/health
-```
-
-### واقعیت مهم
-
-لبه‌ی OpenCode (Cloudflare) بیشتر پروکسی‌های رایگان دیتاسنتر را مسدود می‌کند.  
-استخر پیش‌فرض اغلب **خالی** تمام می‌شود — سپس سرور از مسیر **مستقیم** استفاده می‌کند که تا وقتی rate-limit نخورید مشکلی نیست.
-
-برای چرخش قابل‌اعتماد، به **پروکسی‌های خودتان** اشاره دهید:
-
-```bash
-# Linux / macOS
-export PROXY_SOURCES="http=https://example.com/my-http.txt,socks5=https://example.com/my-socks5.txt"
-node server.mjs
-
-# Windows PowerShell
-$env:PROXY_SOURCES="http=https://example.com/my-http.txt,socks5=https://example.com/my-socks5.txt"
-node server.mjs
-```
-
-یا یک پروکسی محلی (Clash / V2Ray / و غیره):
-
-```bash
-export PROXY_SOURCES="http=http://127.0.0.1:7890"
-node server.mjs
-```
-
----
-
-## متغیرهای محیطی
-
-| متغیر | پیش‌فرض | توضیح |
-|-------|---------|-------|
-| `PROXY_PORT` | `8787` | پورت گوش دادن |
-| `KEYS_FILE` | `./api-keys.json` | مسیر کلیدهای API |
-| `PROXY_ENABLED` | `1` | با `0` استخر غیرفعال می‌شود (فقط مستقیم) |
-| `PROXY_DASHBOARD` | `1` | با `0` داشبورد وب غیرفعال می‌شود |
-| `PROXY_OPEN_AUTH` | `1` | با `0` کلید معتبر از `api-keys.json` الزامی می‌شود |
-| `PROXY_SOURCES` | (۶۰+ داخلی) | جایگزین `type=url,type=url,...` |
-| `PROXY_SAMPLE_SIZE` | `350` | نامزدهای تست‌شده در هر بار به‌روزرسانی |
-| `PROXY_POOL_SIZE` | `30` | حداکثر پروکسی‌های کاری نگه‌داری‌شده |
-| `PROXY_CONCURRENCY` | `60` | تست‌های موازی |
-| `PROXY_TEST_TIMEOUT_MS` | `5500` | مهلت تست هر پروکسی |
-| `PROXY_MAX_ATTEMPTS` | `6` | پروکسی‌های امتحان‌شده در هر درخواست (بعد از مستقیم) |
-| `PROXY_COOLDOWN_MS` | `600000` | مدت بن در rate-limit (۱۰ دقیقه) |
-| `PROXY_FAIL_COOLDOWN_MS` | `60000` | بن نرم در خطاهای شبکه (۱ دقیقه) |
-| `PROXY_REFRESH_MS` | `1500000` | فاصله‌ی دریافت دوباره (~۲۵ دقیقه) |
-| `PROXY_CACHE_FILE` | `./proxy-cache.json` | مسیر کش روی دیسک |
-| `PROXY_CACHE_MAX_AGE_MS` | `86400000` | حداکثر عمر ورودی کش (۲۴ ساعت) |
-
----
-
-## استقرار روی VPS
-
-```bash
-git clone <repo>
-cd opencode-free-proxy
-npm install
-nohup node server.mjs > proxy.log 2>&1 &
-```
-
-اگر پورت عمومی نیست، تونل SSH:
-
-```bash
-ssh -L 8787:127.0.0.1:8787 user@your-vps
-```
-
-### systemd (اختیاری)
-
-```ini
-# /etc/systemd/system/opencode-proxy.service
-[Unit]
-Description=OpenCode Free Proxy
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=/opt/opencode-proxy
-ExecStart=/usr/bin/node server.mjs
-Restart=always
-RestartSec=5
-Environment=PROXY_PORT=8787
-
-[Install]
-WantedBy=multi-user.target
+npm start          # اجرای سرور
+npm run config     # منوی تنظیمات
+npm run tray       # با آیکن سیستم‌تری
+npm run tray:hide  # تری + مخفی کردن کنسول (ویندوز)
+npm test           # تست‌های واحد (و تست‌های سرتاسری V2Ray وقتی XRAY_PATH تنظیم باشه)
 ```
 
 ```bash
-sudo systemctl enable --now opencode-proxy
+XRAY_PATH=/path/to/xray npm test   # تست‌های تونل واقعی هم اجرا می‌شن (به openssl نیاز دارن)
 ```
 
----
-
-## طرز کار احراز هویت Zen
-
-نقطه‌ی پایانی رایگان OpenCode هدرهای خاصی انتظار دارد (مهندسی معکوس از CLI رسمی):
-
-```
-Authorization: Bearer ***
-User-Agent: opencode/1.15.0 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.13
-x-opencode-client: cli
-x-opencode-project: global
-x-opencode-request: msg_<unique>
-x-opencode-session: ses_<unique>
-```
-
-بدون این‌ها، حتی یک درخواست به‌ظاهر معتبر `AuthError` می‌گیرد.
-
----
-
-## سینی سیستم (مخفی کردن در Tray)
-
-اجرا با آیکون سینی سیستم (ویندوز / مک / لینوکس):
-
-```bash
-npm i          # نصب systray
-npm run tray           # آیکون tray + کنسول قابل مشاهده
-npm run tray:hide      # آیکون tray + مخفی کردن کنسول (ویندوز)
-# یا
-node server.mjs --tray --hide
-```
-
-منوی tray:
-
-| گزینه | عملکرد |
-|-------|--------|
-| Open Health / Proxies / Models | باز کردن در مرورگر |
-| Copy Base URL | کپی `http://localhost:8787` |
-| Hide Console | مخفی کردن پنجره‌ی ترمینال (ویندوز) |
-| Quit | توقف سرور |
-
-متغیرها:
-
-| متغیر | پیش‌فرض | توضیح |
-|-------|---------|-------|
-| `PROXY_TRAY` | `1` در ویندوز، در غیر این صورت خاموش | اجبار tray روشن/خاموش (`0`/`1`) |
-| `PROXY_HIDE_CONSOLE` | خاموش | مخفی‌سازی خودکار کنسول وقتی tray شروع می‌شود |
-
----
-
-## مجوز
+## لایسنس
 
 MIT

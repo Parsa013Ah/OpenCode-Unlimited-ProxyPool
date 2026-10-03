@@ -1,13 +1,14 @@
 /**
- * config.mjs — Simple JSON settings (auto-created on first run)
+ * config.mjs — Simple JSON settings (auto-created on first run → data/config.json)
  */
 import fs from "fs";
 import path from "path";
-import { log, color } from "./banner.mjs";
+import { log, color } from "./ui/banner.mjs";
+import { PATHS, ensureDirs, migrateLegacyFiles } from "./paths.mjs";
 
-const CONFIG_FILE = process.env.CONFIG_FILE || "./config.json";
+const CONFIG_FILE = PATHS.configJson;
 
-const DEFAULTS = {
+export const DEFAULTS = {
   // Network
   port: 8787,
   // "localhost" = only this PC | "network" = all interfaces (LAN)
@@ -19,6 +20,8 @@ const DEFAULTS = {
 
   // Proxy pool
   proxyEnabled: true,
+  // V2Ray / Xray support (vmess, vless, trojan, ss links + subscriptions)
+  v2rayEnabled: true,
   // "normal" = sampled scan | "super" = all unique proxies (slow)
   scanMode: "normal",
 
@@ -32,6 +35,10 @@ const DEFAULTS = {
 let config = { ...DEFAULTS };
 
 export function loadConfig() {
+  const moved = migrateLegacyFiles();
+  if (moved.length) {
+    log("CFG", `moved legacy files into config/ and data/: ${color.bCyan(moved.join(", "))}`, "ok");
+  }
   try {
     if (fs.existsSync(CONFIG_FILE)) {
       const raw = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8"));
@@ -54,6 +61,8 @@ export function loadConfig() {
   if (process.env.PROXY_TRAY === "1") config.tray = true;
   if (process.env.PROXY_HIDE_CONSOLE === "1") config.hideConsole = true;
   if (process.env.PROXY_ENABLED === "0") config.proxyEnabled = false;
+  if (process.env.V2RAY_ENABLED === "0") config.v2rayEnabled = false;
+  if (process.env.V2RAY_ENABLED === "1") config.v2rayEnabled = true;
   if (process.env.PROXY_SCAN_MODE === "super" || process.env.PROXY_SCAN_MODE === "normal") {
     config.scanMode = process.env.PROXY_SCAN_MODE;
   }
@@ -68,7 +77,16 @@ export function saveConfig(next) {
   config = { ...config, ...next };
   const toSave = { ...DEFAULTS, ...config };
   // don't persist pure runtime noise
+  ensureDirs();
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(toSave, null, 2));
+  return config;
+}
+
+/** Restore every setting to its default value (used by the settings menu). */
+export function resetConfig() {
+  config = { ...DEFAULTS };
+  ensureDirs();
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
   return config;
 }
 

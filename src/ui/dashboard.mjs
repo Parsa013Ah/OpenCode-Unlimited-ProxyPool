@@ -1,9 +1,10 @@
 /**
  * dashboard.mjs — Beautiful live stats + settings page at GET /
  */
-import { getStats } from "./stats.mjs";
-import { getConfig, saveConfig, hostFromBind } from "./config.mjs";
-import { getPoolInfo } from "./proxy-pool.mjs";
+import { getStats } from "../stats.mjs";
+import { getConfig, saveConfig, hostFromBind } from "../config.mjs";
+import { getPoolInfo } from "../proxy/pool.mjs";
+import { setV2rayEnabled } from "../proxy/v2ray/index.mjs";
 
 export function mountDashboard(app) {
   app.get("/", (_req, res) => {
@@ -30,8 +31,10 @@ export function mountDashboard(app) {
     if (typeof body.tray === "boolean") next.tray = body.tray;
     if (typeof body.hideConsole === "boolean") next.hideConsole = body.hideConsole;
     if (typeof body.proxyEnabled === "boolean") next.proxyEnabled = body.proxyEnabled;
+    if (typeof body.v2rayEnabled === "boolean") next.v2rayEnabled = body.v2rayEnabled;
     if (typeof body.dashboard === "boolean") next.dashboard = body.dashboard;
     const cfg = saveConfig(next);
+    if (next.v2rayEnabled != null) setV2rayEnabled(cfg.v2rayEnabled); // takes effect on next pool refresh
     res.json({
       ok: true,
       config: publicConfig(),
@@ -50,6 +53,7 @@ function publicConfig() {
     tray: c.tray,
     hideConsole: c.hideConsole,
     proxyEnabled: c.proxyEnabled,
+    v2rayEnabled: c.v2rayEnabled !== false,
     dashboard: c.dashboard,
   };
 }
@@ -179,11 +183,12 @@ function htmlPage() {
         <label><input type="checkbox" id="tray"/> System tray icon</label>
         <label><input type="checkbox" id="hideConsole"/> Hide console on start (Windows)</label>
         <label><input type="checkbox" id="proxyEnabled"/> Proxy pool enabled</label>
+        <label><input type="checkbox" id="v2rayEnabled"/> V2Ray / Xray support</label>
       </div>
       <button id="save">Save settings</button>
       <div class="note" id="saveNote">
         Port &amp; bind need a <strong>restart</strong> to apply. Tray / hide apply on next launch.
-        Edit <strong>config.json</strong> next to the server if you prefer.
+        Edit <strong>data/config.json</strong> if you prefer. V2Ray on/off applies on the next pool refresh.
       </div>
     </div>
   </div>
@@ -214,7 +219,9 @@ async function refresh(){
     $('ttot').textContent = fmt(s.tokensTotal);
     $('stream').textContent = fmt(s.requestsStream);
     $('pool').textContent = fmt(p.workingCount||0);
-    $('poolSub').textContent = (p.enabled===false?'disabled':((p.workingCount||0)+' working · '+(p.bannedCount||0)+' banned'));
+    const v = p.v2ray || {};
+    const v2txt = (v.enabled && (v.nodes||0) > 0) ? (' · v2ray '+(v.reachable||0)+'/'+v.nodes) : '';
+    $('poolSub').textContent = (p.enabled===false?'disabled':((p.workingCount||0)+' working · '+(p.bannedCount||0)+' banned'+v2txt));
     $('uptime').textContent = 'uptime '+s.uptime;
     $('live').textContent = '● live';
 
@@ -224,6 +231,7 @@ async function refresh(){
     $('tray').checked = !!c.tray;
     $('hideConsole').checked = !!c.hideConsole;
     $('proxyEnabled').checked = !!c.proxyEnabled;
+    $('v2rayEnabled').checked = c.v2rayEnabled !== false;
 
     const tb = $('recent');
     tb.innerHTML = (s.lastRequests||[]).map(x => '<tr>'+
@@ -251,6 +259,7 @@ $('save').onclick = async () => {
     tray: $('tray').checked,
     hideConsole: $('hideConsole').checked,
     proxyEnabled: $('proxyEnabled').checked,
+    v2rayEnabled: $('v2rayEnabled').checked,
   };
   const r = await fetch('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
   const d = await r.json();

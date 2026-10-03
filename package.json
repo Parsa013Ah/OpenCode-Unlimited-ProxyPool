@@ -1,16 +1,20 @@
 {
   "name": "opencode-free-proxy",
-  "version": "1.6.0",
-  "description": "High-performance local proxy for OpenCode free-tier AI models \u2014 OpenAI + Anthropic compatible, with auto-rotating proxy pool",
+  "version": "1.7.0",
+  "description": "Local OpenAI + Anthropic compatible proxy for OpenCode free-tier AI models, with an auto-rotating proxy pool (HTTP / SOCKS / V2Ray)",
   "type": "module",
-  "main": "server.mjs",
+  "main": "src/server.mjs",
+  "bin": {
+    "opencode-free-proxy": "src/server.mjs"
+  },
   "scripts": {
-    "start": "node server.mjs",
-    "dev": "node --watch server.mjs",
-    "tray": "node server.mjs --tray",
-    "tray:hide": "node server.mjs --tray --hide",
-    "config": "node menu.mjs",
-    "settings": "node menu.mjs"
+    "start": "node src/server.mjs",
+    "dev": "node --watch src/server.mjs",
+    "tray": "node src/server.mjs --tray",
+    "tray:hide": "node src/server.mjs --tray --hide",
+    "config": "node src/cli/menu.mjs",
+    "settings": "node src/cli/menu.mjs",
+    "test": "node --test"
   },
   "dependencies": {
     "express": "^4.21.0",
@@ -28,6 +32,10 @@
     "openai",
     "anthropic",
     "free-ai",
-    "zen-api"
+    "zen-api",
+    "v2ray",
+    "xray",
+    "vmess",
+    "vless"
   ]
 }

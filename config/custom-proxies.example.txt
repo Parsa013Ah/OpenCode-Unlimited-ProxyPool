@@ -1,0 +1,21 @@
+# Personal proxies — copy this file to custom-proxies.txt (same folder)
+# One proxy per line. Lines starting with # are ignored.
+#
+# ── Classic proxies ───────────────────────────────────────────────
+#   host:port
+#   host:port:user:pass
+#   user:pass@host:port
+#   http://host:port            http://user:pass@host:port
+#   socks5://host:port          socks5://user:pass@host:port
+#   socks4://host:port
+#   http|host:port              socks5:host:port
+#   (host can be an IP or a domain name)
+#
+# ── V2Ray links (need Xray-core, downloaded automatically) ────────
+#   vmess://…   vless://…   trojan://…   ss://…
+#   You can paste them here OR in config/v2ray.txt — both work.
+
+# 1.2.3.4:8080
+# user:pass@proxy.example.com:1080
+# socks5://user:pass@9.9.9.9:1080
+# vless://UUID@example.com:443?security=tls&type=ws&path=%2Fws#my-server

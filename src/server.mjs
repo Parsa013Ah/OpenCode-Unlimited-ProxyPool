@@ -2,14 +2,17 @@ import express from "express";
 import crypto from "crypto";
 import https from "https";
 import fs from "fs";
-import { initProxyPool, getProxyAgents, banProxy, banProxySoft, getPoolInfo, scheduleBackgroundScan, isPersonalAgent, markProxySuccess, markProxyRateLimit, setScanMode } from "./proxy-pool.mjs";
+import path from "path";
+import { initProxyPool, getProxyAgents, banProxy, banProxySoft, getPoolInfo, scheduleBackgroundScan, isPersonalAgent, markProxySuccess, markProxyRateLimit, setScanMode } from "./proxy/pool.mjs";
+import { setV2rayEnabled } from "./proxy/v2ray/index.mjs";
 import {
   printBanner, printEndpoints, printModels, printKeys, log, color, Spinner,
-} from "./banner.mjs";
-import { initTray } from "./tray.mjs";
+} from "./ui/banner.mjs";
+import { initTray } from "./ui/tray.mjs";
 import { loadConfig, getConfig, hostFromBind } from "./config.mjs";
 import { recordRequest, getStats } from "./stats.mjs";
-import { mountDashboard } from "./dashboard.mjs";
+import { mountDashboard } from "./ui/dashboard.mjs";
+import { PATHS, ensureDirs, ROOT } from "./paths.mjs";
 
 const app = express();
 app.use(express.json({ limit: "10mb" }));
@@ -31,10 +34,10 @@ else if (process.env.PROXY_ENABLED == null) process.env.PROXY_ENABLED = "1";
 const PORT = cfg.port;
 const HOST = hostFromBind(cfg.bind);
 const OC_VERSION = "1.15.0";
-const PROXY_VERSION = "16";
+const PROXY_VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version;
 
 // ── API Keys ───────────────────────────────────────────────────────
-const keysFile = process.env.KEYS_FILE || "./api-keys.json";
+const keysFile = PATHS.apiKeys;
 let apiKeys = {};
 function loadKeys() {
   try { apiKeys = JSON.parse(fs.readFileSync(keysFile, "utf8")); } catch {}
@@ -43,6 +46,7 @@ function loadKeys() {
       admin: "oc-" + crypto.randomBytes(20).toString("hex"),
       "user-default": "oc-" + crypto.randomBytes(20).toString("hex"),
     };
+    ensureDirs();
     fs.writeFileSync(keysFile, JSON.stringify(apiKeys, null, 2));
     log("INIT", `generated new API keys → ${keysFile}`, "ok");
   }
@@ -794,6 +798,7 @@ const bootSpin = new Spinner("warming proxy pool…");
 bootSpin.start();
 
 if (cfg.scanMode) setScanMode(cfg.scanMode);
+setV2rayEnabled(cfg.v2rayEnabled !== false);
 initProxyPool();
 
 const server = app.listen(PORT, HOST, async () => {

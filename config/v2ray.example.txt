@@ -1,0 +1,14 @@
+# V2Ray configs — copy this file to v2ray.txt (same folder)
+# One item per line. Lines starting with # are ignored.
+#
+#   • Share links:          vmess://  vless://  trojan://  ss://
+#   • Subscription URLs:    https://your-provider.example/sub/TOKEN
+#                           (the list is downloaded, decoded and cached on disk)
+#
+# You can also drop full Xray / V2Ray / v2rayN JSON configs into config/v2ray/*.json
+
+# vless://UUID@example.com:443?encryption=none&security=reality&sni=www.microsoft.com&fp=chrome&pbk=PUBLIC_KEY&sid=SHORT_ID&flow=xtls-rprx-vision&type=tcp#reality-node
+# vmess://eyJ2IjoiMiIsInBzIjoiZXhhbXBsZSIsImFkZCI6ImV4YW1wbGUuY29tIiwicG9ydCI6IjQ0MyIsImlkIjoiVVVJRCIsImFpZCI6IjAiLCJuZXQiOiJ3cyIsInRscyI6InRscyJ9
+# trojan://PASSWORD@example.com:443?sni=example.com#trojan-node
+# ss://YWVzLTI1Ni1nY206cGFzc3dvcmQ@example.com:8388#ss-node
+# https://your-provider.example/sub/TOKEN

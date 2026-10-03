@@ -1,6 +1,18 @@
 node_modules/
-api-keys.json
-proxy-cache.json
 *.log
 .env
-config.json
+
+# runtime state (config.json, api-keys.json, proxy-cache.json, downloaded xray …)
+data/*
+!data/.gitkeep
+
+# personal configs — NEVER commit these (credentials / server addresses)
+config/custom-proxies.txt
+config/v2ray.txt
+config/v2ray/*.json
+
+# legacy locations (pre-1.7 layout)
+/config.json
+/api-keys.json
+/proxy-cache.json
+/custom-proxies.txt
